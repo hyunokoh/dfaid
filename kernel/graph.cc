@@ -2,6 +2,8 @@
 #include <ratio>
 #include <iostream>
 
+#include <thread>
+
 #include "graph.h"
 
 using namespace std;
@@ -14,18 +16,28 @@ int Port::getBufferSize()
 	if(pRate.numerator() % pRate.denominator()>0) 
 		bufferSize++;
 
+	if(mMinBufferSize > bufferSize)
+		bufferSize = mMinBufferSize;
+
 	return bufferSize;
 }
 
-void Port::advanceIndex()
+void Port::advanceIndex(int theNumIteration)
 {
-	pIndex += pRate;
+	pIndex += pRate*theNumIteration;
 	if(pIndex>=pIndexBound) pIndex = 0;
 }
 
 void Edge::connect(Actor* source, Port* sourcePort, Actor* sink, Port* sinkPort) 
 {
-	mSourceActor = source; mSinkActor = sink; mSourcePort = sourcePort; mSinkPort = sinkPort; 
+	mSourceActor = source; 
+	mSinkActor = sink; 
+	mSourcePort = sourcePort; 
+	mSinkPort = sinkPort; 
+
+	mSourcePort->setActor(mSourceActor);
+	mSinkPort->setActor(mSinkActor);
+
 	mSourcePort->setEdge(this);
 	mSinkPort->setEdge(this);
 }
@@ -38,21 +50,16 @@ void Actor::init()
 {
 }
 
-void Actor::go()
-{
-	updateIndices();
-}
-
-void Actor::updateIndices()
+void Actor::updateIndices(int theNumIterations)
 {
 	vector<Port*>::iterator port;
 
 	for(port=mOutportList.begin(); port!=mOutportList.end();++port) {
-		(*port)->advanceIndex();
+		(*port)->advanceIndex(theNumIterations);
 	}
 
 	for(port=mInportList.begin(); port!=mInportList.end();++port) {
-		(*port)->advanceIndex();
+		(*port)->advanceIndex(theNumIterations);
 	}
 }
 
@@ -120,6 +127,14 @@ void Graph::wrapup()
 	for(edge = pEdgeList.begin(); edge != pEdgeList.end(); ++edge) {	
 		(*edge)->wrapup();
 	}
+}
+
+void Graph::updateIndices(int theNumIteration)
+{
+	vector<Actor*>::iterator actor;
+	for(actor = pActorList.begin(); actor != pActorList.end(); ++actor) {	
+		(*actor)->updateIndices(theNumIteration);
+	}		
 }
 
 }

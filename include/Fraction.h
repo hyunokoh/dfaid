@@ -90,6 +90,8 @@ Fraction operator*(const Fraction& left, const Fraction& right);
 Fraction operator/(const Fraction& left, const Fraction& right);
 Fraction operator-(const Fraction& value);
 
+Fraction operator*(const Fraction& left, const int& right);
+
 bool operator<(const Fraction& left, const Fraction& right);
 bool operator<=(const Fraction& left, const Fraction& right);
 bool operator==(const Fraction& left, const Fraction& right);

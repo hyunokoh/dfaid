@@ -1,6 +1,7 @@
 #include <vector>
 #include <ratio>
 #include <iostream>
+#include <thread>
 
 #include "graph.h"
 
@@ -14,7 +15,7 @@ public:
 
 	void setup() { output.setRate(2); Actor::setup(); }
 	void init() { state = 0; Actor::init(); }
-	void go() { output[0] = state; output[1] = state+1; state += 2; Actor::go(); }
+	void go(int i=0) { output[2*i] = state; output[2*i+1] = state+1; state += 2; }
 
 	outport<int> output;
 private:
@@ -26,30 +27,81 @@ class Cons : public Actor
 public:
 	Cons() { addInport(&input); }
 
-	void go() { cout << input[0] << " "; Actor::go(); }
+	void go(int i=0) { cout << input[i] << " "; }
 
 	inport<int> input;
 };
 class Prodcons : public Graph
 {
 public:
-	void create();
+	Prod prod;
+	Cons cons;
 
-	void go() { pActorList[0]->go(); pActorList[1]->go(); pActorList[1]->go(); }
+	void create();
+	void setup();
+	void go();
+
+	void goSequential();
+	void goParallel();
 };
+
+void Prodcons::go()
+{
+	goParallel();
+}
+
+void Prodcons::goSequential()
+{ 
+	int i;
+	for(i=0; i<2; i++) {
+		prod.go(i);
+	}
+	prod.updateIndices(2);
+	for(i=0; i<4; i++) {
+		cons.go(i);
+	}
+	cons.updateIndices(4);
+}
+
+void Prodcons::goParallel()
+{
+	int i;
+	thread prod0(&Prod::go,&prod,0);
+	thread prod1(&Prod::go,&prod,1);
+
+	prod0.join();
+	prod1.join();
+	prod.updateIndices(2);
+
+	thread cons0(&Cons::go,&cons,0);
+	thread cons1(&Cons::go,&cons,1);
+	thread cons2(&Cons::go,&cons,2);
+	thread cons3(&Cons::go,&cons,3);
+
+	cons0.join();
+	cons1.join();
+	cons2.join();
+	cons3.join();
+	cons.updateIndices(4);
+}
+
 	
 void Prodcons::create()
 {
-	Prod* prod = new Prod;
-	Cons* cons = new Cons;
+	addActor(&prod);
+	addActor(&cons);
 
-	addActor(prod);
-	addActor(cons);
-
-	connect(prod, &prod->output, cons, &cons->input);
+	connect(&prod, &prod.output, &cons, &cons.input);
 }	
 
-int main()
+void Prodcons::setup()
+{
+	prod.output.setMinBufferSize(4);
+
+	Graph::setup();
+}
+
+int main(int argc, const char* argv[])
 {
 	Prodcons prodcons;
 	prodcons.create();
@@ -57,8 +109,15 @@ int main()
 	prodcons.setup();
 	prodcons.init();
 	int i;
-	for(i=0; i<10; i++) {
-		prodcons.go();
+
+	if(argc>=2 && strcmp(argv[1],"-par")==0) {
+		for(i=0; i<10; i++) {
+			prodcons.goParallel();
+		}
+	} else {
+		for(i=0; i<10; i++) {
+			prodcons.goSequential();
+		}
 	}
 
 	prodcons.wrapup();

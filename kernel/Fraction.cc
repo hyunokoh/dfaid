@@ -81,6 +81,13 @@ Fraction operator*(const Fraction& left, const Fraction& right)
    return result;
 }
 
+Fraction operator*(const Fraction& left, const int& right)
+{
+   Fraction result(left.numerator() * right,
+      left.denominator());
+   return result;
+}
+
 Fraction operator/(const Fraction& left, const Fraction& right)
 {
    Fraction result(left.numerator() * right.denominator(),

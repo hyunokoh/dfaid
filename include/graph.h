@@ -2,8 +2,8 @@
 #define __DFGRAPH__
 
 #include <vector>
-#include <ratio>
 #include <iostream>
+#include <thread>
 #include "Fraction.h"
 
 using namespace std;
@@ -11,27 +11,37 @@ using namespace std;
 namespace dataflow {
 
 class Edge;
+class Actor;
 
 class Port
 {
-public:
-	Port() : pRate(1), pEdge(0), pIndexBound(1), pIndex(0) {}
-
+protected:
 	Edge* pEdge;
+	Actor* pActor;
 
 	Fraction pRate;
 	Fraction pIndex;
 	Fraction pIndexBound; 
+
+private:
+	int mMinBufferSize;
+
 public:
+	Port() : pRate(1), pEdge(0), pIndexBound(1), pIndex(0), mMinBufferSize(1) {}
+
 	virtual void setup() {}
 	virtual void init(){ pIndex = 0; }
 	virtual void phase_init() { pIndex = 0; }
 	virtual void wrapup(){} 
 	
-	void advanceIndex();
+	void advanceIndex(int=1);
+
+	void setActor(Actor* theActor) { pActor = theActor; }
+	Actor* getActor() { return pActor; }
 
 	void setEdge(Edge* theEdge) { pEdge = theEdge; }
 
+	void setMinBufferSize(int theSize) { mMinBufferSize = theSize; }
 	int getBufferSize();
 
 	void setRate(Fraction theRate) { pRate = theRate; }
@@ -78,10 +88,10 @@ public:
 	virtual void setup(); 
 	virtual void init();
 	virtual void phase_init(){}
-	virtual void go();
+	virtual void go(int=0)=0;
 	virtual void wrapup() {}
 
-	void updateIndices();
+	void updateIndices(int=1);
 private:
 	vector<Port*> mInportList;
 	vector<Port*> mOutportList;
@@ -124,6 +134,8 @@ public:
 	virtual void phase_init();
 	virtual void go();
 	virtual void wrapup();
+
+	virtual void updateIndices(int=1);
 };
 
 template<typename Type>

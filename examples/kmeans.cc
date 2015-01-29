@@ -4,16 +4,23 @@
 
 using namespace dataflow;
 
-#include "page.h"
+//#include "page.h"
+
+#define MAX_POINTS 32 
 #define MAX_CENTROID 10
 #define MAX_DIMENSION 2 
+#define PAGE_SIZE (MAX_POINTS*sizeof(int)*MAX_DIMENSION)
 
 typedef struct {
-        int data[PAGE_SIZE];
+        char data[PAGE_SIZE];
+} page_type;
+
+typedef struct {
+        int data[PAGE_SIZE/sizeof(int)];
 } index_type;
 
 typedef struct {
-        int data[MAX_CENTROID];
+        int data[PAGE_SIZE/sizeof(int)];
 } centroidIndex_type;
 
 typedef struct {
@@ -36,15 +43,18 @@ public:
 	outport<page_type> output1;
 	outport<page_type> output2;
 
-	void go();
+	void setup();
+	void go(int=0);
 };
 
-void Fork::go()
+void Fork::setup()
 {
-	output1[0] = input[0];
-	output2[0] = input[0];
+	output1.embed(&input);
+	output2.embed(&input);
+}
 
-	Actor::go();
+void Fork::go(int i)
+{
 }
 
 class ClosestCentroid : public Actor
@@ -56,13 +66,21 @@ public:
 	inport<centroid_type> centroid;
 	outport<centroidIndex_type> index;
 
+	void setup();
 	void init();
-	void go();
+	void go(int=0);
 
 	int numCentroids;
 	int dimension;
 	int numPoints;
 };
+
+void ClosestCentroid::setup()
+{
+	numPoints = PAGE_SIZE/dimension/sizeof(int);
+	cout << "numPoints : " << numPoints << endl;
+	Actor::setup();
+}
 
 void ClosestCentroid::init()
 {
@@ -81,7 +99,7 @@ void ClosestCentroid::init()
 	Actor::init();
 }
 
-void ClosestCentroid::go()
+void ClosestCentroid::go(int inst)
 {
 	int pi;
 	for(pi=0; pi<numPoints;pi++) {
@@ -95,7 +113,7 @@ void ClosestCentroid::go()
 				float centroid_temp = centroid[0].data[i][j];
 
 				item_type item;
-				item.idata = page[0].data[pi*dimension+j]%100;
+				item.idata = page[inst].data[pi*dimension+j]%100;
 				item.idata = (item.idata<0)?-item.idata:item.idata;
 				distance += (item.idata-centroid_temp) * (item.idata-centroid_temp);
 			}
@@ -106,13 +124,11 @@ void ClosestCentroid::go()
 			}
 		}
 
-		minDistance = sqrt(minDistance);
+		//minDistance = sqrt(minDistance);
 
 		//printf("minIndex : %d, minDistance %f\n", minIndex, minDistance);
-		index[0].data[pi] = minIndex;
+		index[inst].data[pi] = minIndex;
 	}
-
-	Actor::go();
 }
 
 class UpdateCentroid : public Actor
@@ -127,7 +143,7 @@ public:
 	void setup();
 	void init();
 	void phase_init();
-	void go();
+	void go(int=0);
 	void wrapup();
 
 	int numCentroids;
@@ -145,6 +161,9 @@ private:
 
 void UpdateCentroid::setup()
 {
+	numPoints = PAGE_SIZE/dimension/sizeof(int);
+	cout << "numPoints : " << numPoints << endl;
+
         sizeofCentroid = new int[numCentroids];
 	Actor::setup();
 }
@@ -176,8 +195,10 @@ void UpdateCentroid::phase_init()
                                 centroid[0].data[i][j] = newcent;
 				cout << centroid[0].data[i][j] << " ";
                 	}
+                        cent.data[i][j] = 0;
                 }
 		cout << ")" << endl;
+                sizeofCentroid[i] = 0;
         }
 	cout << "-----------------------" <<endl;
 
@@ -188,20 +209,18 @@ void UpdateCentroid::phase_init()
 	Actor::phase_init();
 }
 
-void UpdateCentroid::go()
+void UpdateCentroid::go(int i)
 {
 	int p,j,k;
         for(p=0; p<numPoints; p++) {
-                int id = index[0].data[p];
+                int id = index[i].data[p];
                 sizeofCentroid[id]++;
                 for(j=0; j<dimension; j++) {
                         int item;
-                        item = page[0].data[p*dimension+j]%100;
+                        item = page[i].data[p*dimension+j]%100;
                         cent.data[id][j] += item;
                 }
         }
-
-	Actor::go();
 }
 
 void UpdateCentroid::wrapup()
@@ -222,11 +241,64 @@ public:
         void create();
 	void setup();
 
-        void go() { read.go(); fork.go(); cc.go(); uc.go(); }
+        void go();
+
+	void goOnce(int);
 
 	bool isNoInput() { return read.isNoInput(); }
 	bool isConverged() { return uc.isConverged(); }
+
+	void setParallelism(int thePar) { mParallelism = thePar; }
+private:
+	int mParallelism;
 };
+
+void Kmeans::goOnce(int i)
+{
+//	fork.go(i);
+	cc.go(i);
+//	uc.go(i);
+}
+
+void Kmeans::go()
+{
+/*
+	read.go();
+	cc.go();
+	uc.go();
+	read.updateIndices();
+	cc.updateIndices();
+	uc.updateIndices();
+*/
+	// current ReadFile has an internal state
+	vector<thread> threadList;
+
+	int i;
+	int numPar = 0;
+	for(i=0; i<mParallelism; i++) {
+		if(read.isNoInput()) break; 
+		read.go(i); 
+		numPar++;
+	}
+
+	for(i=0; i<numPar; i++) {
+		threadList.push_back(thread(&Kmeans::goOnce, this, i));
+	//	cc.go(i);
+	}
+	
+	vector<thread>::iterator th;
+	for(th=threadList.begin(); th!=threadList.end(); ++th) {
+		(*th).join();
+	}
+
+	for(i=0; i<numPar; i++) {
+		uc.go(i);
+	}
+
+	read.updateIndices(numPar);
+	cc.updateIndices(numPar);
+	uc.updateIndices(numPar);
+}
 
 void Kmeans::create()
 {
@@ -244,15 +316,16 @@ void Kmeans::create()
 
 void Kmeans::setup()
 {
-	read.fileName = "kmeans.cc";
+	read.fileName = "prodcons.cc";
 
-        cc.numPoints = 32;
 	cc.numCentroids = 10;
         cc.dimension = 2;
 
-        uc.numPoints = 32;
 	uc.numCentroids = 10;
         uc.dimension = 2;
+
+	read.output.setMinBufferSize(mParallelism);
+	cc.index.setMinBufferSize(mParallelism);
 
 	Graph::setup();
 }
@@ -260,11 +333,13 @@ void Kmeans::setup()
 int main()
 {
         Kmeans kmeans;
+	kmeans.setParallelism(4);
+
         kmeans.create();
 
         kmeans.setup();
 	kmeans.init();
-	//kmeans.phase_init();
+
         int i;
         for(i=0; i<1000; i++) {
                 kmeans.go();

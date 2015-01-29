@@ -28,6 +28,22 @@ void Port::advanceIndex(int theNumIteration)
 	if(pIndex>=pIndexBound) pIndex = 0;
 }
 
+void Port::setupEmbed()
+{
+	if(!isEmbedded()) return;
+
+	Port* realPort = getEmbeddedPort();
+	while(realPort->getEdge()->getSourcePort()->isEmbedded()) {
+		realPort = realPort->getEdge()->getSourcePort()->getEmbeddedPort();
+
+		if(realPort == this) // circulation error
+			return;
+	}
+
+	setupEmbed(realPort);
+	getEdge()->getSinkPort()->setup();
+}
+
 void Edge::connect(Actor* source, Port* sourcePort, Actor* sink, Port* sinkPort) 
 {
 	mSourceActor = source; 
@@ -79,6 +95,10 @@ void Graph::setup()
 	vector<Edge*>::iterator edge;
 	for(edge = pEdgeList.begin(); edge != pEdgeList.end(); ++edge) {	
 		(*edge)->setup();
+	}		
+
+	for(edge = pEdgeList.begin(); edge != pEdgeList.end(); ++edge) {	
+		(*edge)->setupEmbed();
 	}		
 }
 

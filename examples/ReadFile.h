@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #include "graph.h"
-#include "page.h"
+//#include "page.h"
 // file read simulation actor
 
 using namespace std;
@@ -18,7 +18,7 @@ public:
 
 	void init();
 	void phase_init();
-	void go();
+	void go(int=0);
 
 	bool isNoInput() { return mNoInputFlag; }
 
@@ -31,7 +31,8 @@ private:
 void ReadFile::init()
 {
 	ifp=fopen(fileName.c_str(),"r");
-	Actor::init();
+
+	Actor::phase_init();
 }
 
 void ReadFile::phase_init()
@@ -42,12 +43,11 @@ void ReadFile::phase_init()
 	Actor::phase_init();
 }
 
-void ReadFile::go()
+void ReadFile::go(int i)
 {
 	// read a page from a file
-	if(fread(output[0].data, sizeof(page_type),1,ifp)<=0) {
+	memset(output[i].data,0,sizeof(page_type));
+	if(fread(output[i].data, sizeof(page_type),1,ifp)<=0) {
 		mNoInputFlag = true;
 	} 
-
-	Actor::go();
 }

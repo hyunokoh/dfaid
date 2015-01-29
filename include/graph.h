@@ -25,11 +25,13 @@ protected:
 
 private:
 	int mMinBufferSize;
+	Port* mEmbeddedPort;
 
 public:
-	Port() : pRate(1), pEdge(0), pIndexBound(1), pIndex(0), mMinBufferSize(1) {}
+	Port() : pRate(1), pEdge(0), pIndexBound(1), pIndex(0), mMinBufferSize(1), mEmbeddedPort(0) {}
 
-	virtual void setup() {}
+	virtual void setup()=0;
+	virtual void setupEmbed();
 	virtual void init(){ pIndex = 0; }
 	virtual void phase_init() { pIndex = 0; }
 	virtual void wrapup(){} 
@@ -40,6 +42,7 @@ public:
 	Actor* getActor() { return pActor; }
 
 	void setEdge(Edge* theEdge) { pEdge = theEdge; }
+	Edge* getEdge() { return pEdge; }
 
 	void setMinBufferSize(int theSize) { mMinBufferSize = theSize; }
 	int getBufferSize();
@@ -49,6 +52,12 @@ public:
 
 	void setIndexBound(Fraction theBound) { pIndexBound = theBound; }
 	Fraction getIndexBound() { return pIndexBound; }
+
+	void embed(Port* thePort) { mEmbeddedPort = thePort; }
+	bool isEmbedded() { return mEmbeddedPort!=NULL; }
+	Port* getEmbeddedPort() { return mEmbeddedPort; }
+
+	virtual void setupEmbed(Port*){}
 };
 
 template<typename Type> class inport : public Port
@@ -58,8 +67,9 @@ public:
 
 	/*virtual*/ void setup();
 	Type& operator[](int index) { return mBuffer[(int)pIndex+index]; }
-
 	void setBuffer(Type *theBuffer) { mBuffer = theBuffer; }
+
+	Type* getBuffer() { return mBuffer; }
 private:
 	Type* mBuffer;
 };
@@ -71,10 +81,10 @@ public:
 
 	/*virtual*/ void setup();
 	/*virtual*/ void wrapup() {}
-	Type& operator[](int index) { return mBuffer[index+(int)pIndex]; }
-
+	Type& operator[](int index) { return mBuffer[(int)pIndex+index]; }
 	Type* getBuffer() { return mBuffer; }
 
+	void setupEmbed(Port*);
 private:
 	Type* mBuffer;
 };
@@ -103,6 +113,7 @@ public:
 	void connect(Actor* source, Port* sourcePort, Actor* sink, Port* sinkPort);
 
 	virtual void setup(){ mSourcePort->setup(); mSinkPort->setup(); }
+	virtual void setupEmbed(){ mSourcePort->setupEmbed(); mSinkPort->setupEmbed(); }
 	virtual void init(){ mSourcePort->init(); mSinkPort->init(); }
 	virtual void phase_init(){ mSourcePort->phase_init(); mSinkPort->phase_init(); }
 	virtual void wrapup(){ mSourcePort->wrapup(); mSinkPort->wrapup(); }
@@ -141,7 +152,7 @@ public:
 template<typename Type>
 void outport<Type>::setup()
 {
-	Port::setup();
+	if(isEmbedded() || mBuffer!=NULL) return;
 
         int sourceBufferSize = getBufferSize();
         int sinkBufferSize = pEdge->getSinkPort()->getBufferSize();
@@ -153,10 +164,15 @@ void outport<Type>::setup()
 }
 
 template<typename Type>
+void outport<Type>::setupEmbed(Port* thePort)
+{
+	mBuffer = dynamic_cast<inport <Type>* > (thePort)->getBuffer();
+	pIndexBound = thePort->getIndexBound();
+}
+
+template<typename Type>
 void inport<Type>::setup()
 {
-	Port::setup();
-
         mBuffer = dynamic_cast<outport <Type>* > (pEdge->getSourcePort())->getBuffer();
 	pIndexBound = pEdge->getSourcePort()->getIndexBound();
 }

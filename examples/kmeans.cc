@@ -262,14 +262,14 @@ void Kmeans::goOnce(int i)
 
 void Kmeans::go()
 {
-/*
+
 	read.go();
 	cc.go();
 	uc.go();
 	read.updateIndices();
 	cc.updateIndices();
 	uc.updateIndices();
-*/
+/*
 	// current ReadFile has an internal state
 	vector<thread> threadList;
 
@@ -298,6 +298,7 @@ void Kmeans::go()
 	read.updateIndices(numPar);
 	cc.updateIndices(numPar);
 	uc.updateIndices(numPar);
+*/
 }
 
 void Kmeans::create()
@@ -333,7 +334,7 @@ void Kmeans::setup()
 int main()
 {
         Kmeans kmeans;
-	kmeans.setParallelism(4);
+	kmeans.setParallelism(1);
 
         kmeans.create();
 

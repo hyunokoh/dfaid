@@ -2,6 +2,7 @@
 #include <ratio>
 #include <iostream>
 #include <thread>
+#include <string.h>
 
 #include "graph.h"
 

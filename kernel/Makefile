@@ -1,4 +1,4 @@
-CFLAGS = -g -std=c++11
+CFLAGS = -g -std=c++11 -fPIC
 INCLUDE=../include
 LIBS = -L../kernel -ldataflow
 CPP = g++

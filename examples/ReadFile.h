@@ -1,6 +1,7 @@
 
 #include <string>
 #include <stdio.h>
+#include <string.h>
 
 #include "graph.h"
 //#include "page.h"
